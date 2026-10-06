@@ -60,7 +60,27 @@ function useFaceTexture(headColor: string) {
 
 type Props = {
   colors: AvatarColors;
+  swordEquipped?: boolean;
 };
+
+function Sword() {
+  return (
+    <group position={[0, -RIG.limb.y + 0.1, 0.15]} rotation={[-0.25, 0, 0]}>
+      <mesh position={[0, -0.3, 0]} castShadow>
+        <boxGeometry args={[0.2, 0.6, 0.15]} />
+        <meshStandardMaterial color="#4a3826" />
+      </mesh>
+      <mesh position={[0, 0.15, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.15, 0.1]} />
+        <meshStandardMaterial color="#8a8a8a" metalness={0.6} roughness={0.3} />
+      </mesh>
+      <mesh position={[0, 1.1, 0]} castShadow>
+        <boxGeometry args={[0.18, 1.7, 0.08]} />
+        <meshStandardMaterial color="#d8dde3" metalness={0.7} roughness={0.25} />
+      </mesh>
+    </group>
+  );
+}
 
 /**
  * Original 6-box R6-style rig. Root origin is at the character's feet;
@@ -69,7 +89,7 @@ type Props = {
  * imperatively by a controller via the exposed ref handle (every-frame
  * pose updates would be too expensive as React state).
  */
-export const CharacterRig = forwardRef<RigHandle, Props>(function CharacterRig({ colors }, ref) {
+export const CharacterRig = forwardRef<RigHandle, Props>(function CharacterRig({ colors, swordEquipped }, ref) {
   const rootRef = useRef<THREE.Group>(null!);
   const leftLegRef = useRef<THREE.Group>(null!);
   const rightLegRef = useRef<THREE.Group>(null!);
@@ -132,6 +152,7 @@ export const CharacterRig = forwardRef<RigHandle, Props>(function CharacterRig({
           <boxGeometry args={[RIG.limb.x, RIG.limb.y, RIG.limb.z]} />
           <meshStandardMaterial color={colors.arms} />
         </mesh>
+        {swordEquipped && <Sword />}
       </group>
 
       <group ref={headRef} position={[0, NECK_Y, 0]}>

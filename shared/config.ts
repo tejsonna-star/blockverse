@@ -46,10 +46,12 @@ export const RECONNECT_WINDOW_MS = 30_000;
 // ---------- Combat (used from M2) ----------
 export const MAX_HEALTH = 100;
 export const DAMAGE = {
-  slash: 10,
+  slash: 25,
   lunge: 30,
   touch: 5,
 };
+export const SWORD_RANGE = 6; // studs, slash hit distance from player center
+export const SWORD_ARC_DEGREES = 180; // forward-facing hit cone
 export const ATTACK_COOLDOWN_MS = 500;
 export const LUNGE_DOUBLE_CLICK_WINDOW_MS = 200;
 export const LUNGE_FORWARD_BOOST = 10; // studs/sec impulse applied on lunge

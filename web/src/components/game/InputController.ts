@@ -9,6 +9,8 @@ export class InputController {
   private mouseDX = 0;
   private mouseDY = 0;
   private wheelDY = 0;
+  private attackQueued = false;
+  private equipToggleQueued = false;
   shiftLock = false;
 
   constructor(private element: HTMLElement) {
@@ -23,9 +25,13 @@ export class InputController {
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
+    const wasHeld = this.keys.has(e.code);
     this.keys.add(e.code);
     if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
       this.toggleShiftLock();
+    }
+    if (e.code === "Digit1" && !wasHeld) {
+      this.equipToggleQueued = true;
     }
   };
 
@@ -35,6 +41,7 @@ export class InputController {
 
   private onMouseDown = (e: MouseEvent) => {
     if (e.button === 2) this.rightDown = true;
+    if (e.button === 0) this.attackQueued = true;
   };
 
   private onMouseUp = (e: MouseEvent) => {
@@ -96,6 +103,18 @@ export class InputController {
     const dy = this.wheelDY;
     this.wheelDY = 0;
     return dy;
+  }
+
+  consumeAttack(): boolean {
+    const v = this.attackQueued;
+    this.attackQueued = false;
+    return v;
+  }
+
+  consumeEquipToggle(): boolean {
+    const v = this.equipToggleQueued;
+    this.equipToggleQueued = false;
+    return v;
   }
 
   dispose(): void {
