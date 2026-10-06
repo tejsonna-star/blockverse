@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: blockverse-server
+    env: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    envVars:
+      - key: NODE_ENV
+        value: production

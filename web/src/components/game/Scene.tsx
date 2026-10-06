@@ -201,6 +201,7 @@ function SceneContents({
   inputRef,
   abilityStatusRef,
   onEquipChange,
+  onDummyKilled,
 }: {
   colors: AvatarColors;
   network: NetworkClient | null;
@@ -208,6 +209,7 @@ function SceneContents({
   inputRef?: React.RefObject<InputController | null>;
   abilityStatusRef?: React.RefObject<{ cooldownRemaining: number }>;
   onEquipChange?: (equipped: boolean) => void;
+  onDummyKilled?: () => void;
 }) {
   const { gl, scene } = useThree();
   const [input, setInput] = useState<InputController | null>(null);
@@ -265,7 +267,7 @@ function SceneContents({
       <GroundCollider />
       <BoundaryWalls />
       <PhysicsStepper />
-      <PracticeDummy ref={dummyRef} />
+      <PracticeDummy ref={dummyRef} onKilled={onDummyKilled} />
       {network && <RemotePlayers players={network.players} selfId={network.sessionId} />}
       <LocalPlayerController
         input={input}
@@ -289,12 +291,14 @@ export function Scene({
   inputRef,
   abilityStatusRef,
   onEquipChange,
+  onDummyKilled,
 }: {
   network?: NetworkClient | null;
   equippedWeapon?: WeaponId;
   inputRef?: React.RefObject<InputController | null>;
   abilityStatusRef?: React.RefObject<{ cooldownRemaining: number }>;
   onEquipChange?: (equipped: boolean) => void;
+  onDummyKilled?: () => void;
 }) {
   const [colors, setColors] = useState<AvatarColors | null>(null);
 
@@ -314,6 +318,7 @@ export function Scene({
           inputRef={inputRef}
           abilityStatusRef={abilityStatusRef}
           onEquipChange={onEquipChange}
+          onDummyKilled={onDummyKilled}
         />
       </PhysicsProvider>
     </Canvas>

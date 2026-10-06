@@ -113,6 +113,7 @@ export default function FightSimPage() {
         inputRef={inputRef}
         abilityStatusRef={abilityStatusRef}
         onEquipChange={setSwordEquipped}
+        onDummyKilled={() => setCoins((c) => c + COINS_PER_KILL)}
       />
       <Link
         href="/"

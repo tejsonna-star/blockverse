@@ -15,11 +15,16 @@ export type DummyHandle = {
 
 const DUMMY_COLORS = { head: "#c9a227", torso: "#5a5a5a", arms: "#5a5a5a", legs: "#333333" };
 
-export const PracticeDummy = forwardRef<DummyHandle>(function PracticeDummy(_props, ref) {
+export const PracticeDummy = forwardRef<DummyHandle, { onKilled?: () => void }>(function PracticeDummy(
+  { onKilled },
+  ref
+) {
   const [health, setHealth] = useState(MAX_HEALTH);
   const respawnTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const healthRef = useRef(health);
   healthRef.current = health;
+  const onKilledRef = useRef(onKilled);
+  onKilledRef.current = onKilled;
 
   useImperativeHandle(
     ref,
@@ -29,6 +34,7 @@ export const PracticeDummy = forwardRef<DummyHandle>(function PracticeDummy(_pro
         const next = Math.max(0, healthRef.current - amount);
         setHealth(next);
         if (next === 0) {
+          onKilledRef.current?.();
           respawnTimer.current = setTimeout(() => setHealth(MAX_HEALTH), RESPAWN_DELAY_MS);
         }
       },
