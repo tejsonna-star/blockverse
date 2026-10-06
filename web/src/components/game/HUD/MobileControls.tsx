@@ -12,7 +12,9 @@ export function MobileControls({ inputRef }: { inputRef: React.RefObject<InputCo
   const activeTouch = useRef<number | null>(null);
 
   useEffect(() => {
-    setIsTouchDevice(window.matchMedia("(pointer: coarse)").matches);
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    const touchCapable = navigator.maxTouchPoints > 0 || "ontouchstart" in window;
+    setIsTouchDevice(coarse || touchCapable);
   }, []);
 
   if (!isTouchDevice) return null;
