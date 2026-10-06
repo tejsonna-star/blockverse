@@ -7,6 +7,9 @@
     "shared"
   ],
   "scripts": {
+    "build:shared": "npm run build --workspace=shared",
+    "predev": "npm run build:shared",
+    "prebuild": "npm run build:shared",
     "dev": "concurrently -n server,web -c yellow,cyan \"npm run dev:server\" \"npm run dev:web\"",
     "dev:web": "npm run dev --workspace=web",
     "dev:server": "npm run dev --workspace=server",

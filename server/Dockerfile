@@ -4,13 +4,14 @@ COPY package.json package-lock.json ./
 COPY shared ./shared
 COPY server ./server
 RUN npm install --workspace=server --workspace=shared
+RUN npm run build --workspace=shared
 RUN npm run build --workspace=server
 
 FROM node:20-slim
 WORKDIR /repo
 COPY --from=build /repo/node_modules ./node_modules
-COPY --from=build /repo/shared ./shared
-COPY --from=build /repo/server/node_modules ./server/node_modules
+COPY --from=build /repo/shared/dist ./shared/dist
+COPY --from=build /repo/shared/package.json ./shared/package.json
 COPY --from=build /repo/server/dist ./server/dist
 COPY --from=build /repo/server/package.json ./server/package.json
 
