@@ -1,0 +1,14 @@
+{
+  "name": "server",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "echo \"Colyseus game server arrives in M3 — nothing to run yet.\""
+  },
+  "dependencies": {
+    "@blockverse/shared": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
