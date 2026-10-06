@@ -3,13 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { MAX_HEALTH, COINS_PER_KILL, WEAPONS, type AvatarColors, type WeaponId } from "@blockverse/shared";
+import { MAX_HEALTH, COINS_PER_KILL, RESPAWN_DELAY_MS, WEAPONS, type AvatarColors, type WeaponId } from "@blockverse/shared";
 import { authProvider, getAvatarColors } from "@/lib/session";
+import { AccountGate } from "@/components/hub/AccountGate";
 import { HealthBar } from "@/components/game/HUD/HealthBar";
 import { Hotbar } from "@/components/game/HUD/Hotbar";
 import { ChatBox, type ChatLine } from "@/components/game/HUD/ChatBox";
 import { Leaderboard, type LeaderboardEntry } from "@/components/game/HUD/Leaderboard";
 import { KillFeed, type KillFeedLine } from "@/components/game/HUD/KillFeed";
+import { DeathScreen } from "@/components/game/HUD/DeathScreen";
 import { Shop } from "@/components/game/HUD/Shop";
 import { AbilityButton } from "@/components/game/HUD/AbilityButton";
 import { MobileControls } from "@/components/game/HUD/MobileControls";
@@ -35,6 +37,8 @@ export default function NumberNinjaPage() {
   const [killFeed, setKillFeed] = useState<KillFeedLine[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [selfHealth, setSelfHealth] = useState(MAX_HEALTH);
+  const [deathInfo, setDeathInfo] = useState<{ killer: string } | null>(null);
+  const [panicking, setPanicking] = useState(false);
   const [coins, setCoins] = useState(0);
   const [ownedWeapons, setOwnedWeapons] = useState<Set<WeaponId>>(new Set(["default"]));
   const [equippedWeapon, setEquippedWeapon] = useState<WeaponId>("default");
@@ -93,6 +97,10 @@ export default function NumberNinjaPage() {
       if (msg.killer === name) {
         setCoins((c) => c + COINS_PER_KILL);
       }
+      if (msg.victim === name) {
+        setDeathInfo({ killer: msg.killer });
+        setTimeout(() => setDeathInfo(null), RESPAWN_DELAY_MS);
+      }
     });
 
     return () => {
@@ -110,6 +118,10 @@ export default function NumberNinjaPage() {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
       if (e.key.toLowerCase() === "k") {
+        // Cover the screen instantly so the game doesn't keep visibly
+        // simulating/animating during the brief window before the
+        // browser actually finishes navigating away.
+        setPanicking(true);
         window.location.href = "https://www.khanacademy.org/math";
       }
     };
@@ -117,7 +129,15 @@ export default function NumberNinjaPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  if (panicking) {
+    // Unmount the whole game (including the Canvas render loop) instantly
+    // instead of just covering it, so nothing keeps animating underneath
+    // while the browser finishes navigating away.
+    return <div className="fixed inset-0 z-50 bg-white" />;
+  }
+
   return (
+    <AccountGate>
     <div className="fixed inset-0 bg-black">
       <Scene
         network={network}
@@ -126,6 +146,20 @@ export default function NumberNinjaPage() {
         abilityStatusRef={abilityStatusRef}
         onEquipChange={setSwordEquipped}
         onDummyKilled={() => setCoins((c) => c + COINS_PER_KILL)}
+        onAbilityUsed={(weapon, hitSomething) => {
+          const w = WEAPONS.find((x) => x.id === weapon);
+          const suffix = hitSomething ? "" : " (no one in range)";
+          setMessages((prev) => [
+            ...prev.slice(-19),
+            { id: chatId++, username: "SYSTEM", text: `${w?.icon ?? ""} ${w?.name ?? weapon} activated!${suffix}` },
+          ]);
+        }}
+        onLocalHit={(targetName) => {
+          setMessages((prev) => [
+            ...prev.slice(-19),
+            { id: chatId++, username: "SYSTEM", text: `⚔ Hit ${targetName}!` },
+          ]);
+        }}
       />
       <Link
         href="/"
@@ -150,6 +184,7 @@ export default function NumberNinjaPage() {
         {status === "connected" ? "Live" : status === "connecting" ? "Connecting..." : "Offline"}
       </span>
       <HealthBar health={selfHealth} />
+      <DeathScreen visible={!!deathInfo} killerName={deathInfo?.killer} />
       <Hotbar swordEquipped={swordEquipped} />
       <AbilityButton equipped={equippedWeapon} inputRef={inputRef} statusRef={abilityStatusRef} />
       <MobileControls inputRef={inputRef} />
@@ -169,5 +204,6 @@ export default function NumberNinjaPage() {
         onEquip={(id) => setEquippedWeapon(id)}
       />
     </div>
+    </AccountGate>
   );
 }

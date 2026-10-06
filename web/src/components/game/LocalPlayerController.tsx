@@ -14,6 +14,7 @@ import {
   SWORD_ARC_DEGREES,
   ATTACK_COOLDOWN_MS,
   ABILITY_COOLDOWN_MS,
+  ABILITY_RANGE,
   FLASH_DISTANCE,
   KNOCKBACK_SPEED,
   KNOCKBACK_DURATION_MS,
@@ -45,6 +46,8 @@ type Props = {
   equippedWeapon?: WeaponId;
   abilityStatusRef?: RefObject<{ cooldownRemaining: number }>;
   onEquipChange?: (equipped: boolean) => void;
+  onAbilityUsed?: (weapon: WeaponId, hitSomething: boolean) => void;
+  onLocalHit?: (targetName: string) => void;
 };
 
 export function LocalPlayerController({
@@ -57,6 +60,8 @@ export function LocalPlayerController({
   equippedWeapon = "default",
   abilityStatusRef,
   onEquipChange,
+  onAbilityUsed,
+  onLocalHit,
 }: Props) {
   const { RAPIER, world } = usePhysics();
   const rigRef = useRef<RigHandle | null>(null);
@@ -259,6 +264,7 @@ export function LocalPlayerController({
           if (inArc(p.x, p.z)) {
             network.sendAttack(id);
             hitRemote = true;
+            onLocalHit?.(p.username);
             break;
           }
         }
@@ -268,21 +274,45 @@ export function LocalPlayerController({
         const dummy = dummyRef.current;
         if (dummy && dummy.isAlive() && inArc(DUMMY_POSITION.x, DUMMY_POSITION.z)) {
           dummy.takeDamage(DAMAGE.slash);
+          onLocalHit?.("Dummy");
         }
       }
     }
 
     if (input.consumeAbility() && abilityCooldown.current <= 0 && equippedWeaponRef.current !== "default") {
       abilityCooldown.current = ABILITY_COOLDOWN_MS / 1000;
+      const weapon = equippedWeaponRef.current;
 
-      if (equippedWeaponRef.current === "flash") {
-        const forwardDir = yawForward(facingYaw.current);
+      if (weapon === "flash") {
+        // Character body yaw uses the opposite sign convention from the
+        // camera's yawForward() helper, so compute true forward directly:
+        // rotation.y = facingYaw means local +Z (forward) points to
+        // (sin(facingYaw), 0, cos(facingYaw)) in world space.
+        const forwardDir = { x: Math.sin(facingYaw.current), z: Math.cos(facingYaw.current) };
         next.x += forwardDir.x * FLASH_DISTANCE;
         next.z += forwardDir.z * FLASH_DISTANCE;
         collider.setTranslation(next);
         rig.root.position.set(next.x, next.y - colliderOffset, next.z);
-      } else if (network?.connected) {
-        network.sendAbility(equippedWeaponRef.current);
+        onAbilityUsed?.(weapon, true);
+      } else {
+        // The dummy isn't a networked player, so fartblast/snow can only
+        // affect it client-side — without this, solo practice makes these
+        // abilities look like they do nothing.
+        let hitSomething = false;
+        const dummy = dummyRef.current;
+        if (dummy && dummy.isAlive()) {
+          const dist = Math.hypot(DUMMY_POSITION.x - next.x, DUMMY_POSITION.z - next.z);
+          if (dist <= ABILITY_RANGE) {
+            hitSomething = true;
+            if (weapon === "fartblast") dummy.takeDamage(10);
+          }
+        }
+        if (network?.connected) {
+          const hadOtherPlayers = Array.from(network.players.keys()).some((id) => id !== network.sessionId);
+          if (hadOtherPlayers) hitSomething = true;
+          network.sendAbility(weapon);
+        }
+        onAbilityUsed?.(weapon, hitSomething);
       }
     }
 

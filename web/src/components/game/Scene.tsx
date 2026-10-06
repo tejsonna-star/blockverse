@@ -202,6 +202,8 @@ function SceneContents({
   abilityStatusRef,
   onEquipChange,
   onDummyKilled,
+  onAbilityUsed,
+  onLocalHit,
 }: {
   colors: AvatarColors;
   network: NetworkClient | null;
@@ -210,6 +212,8 @@ function SceneContents({
   abilityStatusRef?: React.RefObject<{ cooldownRemaining: number }>;
   onEquipChange?: (equipped: boolean) => void;
   onDummyKilled?: () => void;
+  onAbilityUsed?: (weapon: WeaponId, hitSomething: boolean) => void;
+  onLocalHit?: (targetName: string) => void;
 }) {
   const { gl, scene } = useThree();
   const [input, setInput] = useState<InputController | null>(null);
@@ -279,6 +283,8 @@ function SceneContents({
         equippedWeapon={equippedWeapon}
         abilityStatusRef={abilityStatusRef}
         onEquipChange={onEquipChange}
+        onAbilityUsed={onAbilityUsed}
+        onLocalHit={onLocalHit}
       />
       <CameraRig input={input} orbit={orbitRef} target={targetRef} />
     </>
@@ -292,6 +298,8 @@ export function Scene({
   abilityStatusRef,
   onEquipChange,
   onDummyKilled,
+  onAbilityUsed,
+  onLocalHit,
 }: {
   network?: NetworkClient | null;
   equippedWeapon?: WeaponId;
@@ -299,6 +307,8 @@ export function Scene({
   abilityStatusRef?: React.RefObject<{ cooldownRemaining: number }>;
   onEquipChange?: (equipped: boolean) => void;
   onDummyKilled?: () => void;
+  onAbilityUsed?: (weapon: WeaponId, hitSomething: boolean) => void;
+  onLocalHit?: (targetName: string) => void;
 }) {
   const [colors, setColors] = useState<AvatarColors | null>(null);
 
@@ -319,6 +329,8 @@ export function Scene({
           abilityStatusRef={abilityStatusRef}
           onEquipChange={onEquipChange}
           onDummyKilled={onDummyKilled}
+          onAbilityUsed={onAbilityUsed}
+          onLocalHit={onLocalHit}
         />
       </PhysicsProvider>
     </Canvas>
