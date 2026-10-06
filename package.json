@@ -7,9 +7,12 @@
     "shared"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=web",
+    "dev": "concurrently -n server,web -c yellow,cyan \"npm run dev:server\" \"npm run dev:web\"",
     "dev:web": "npm run dev --workspace=web",
     "dev:server": "npm run dev --workspace=server",
     "build": "npm run build --workspace=web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.4"
   }
 }

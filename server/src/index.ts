@@ -18,7 +18,11 @@ const gameServer = new Server({
 
 gameServer.define("fight_sim", FightSimRoom);
 
-const port = Number(process.env.PORT) || 2567;
+// GAME_SERVER_PORT takes priority so local dev (run alongside the web app,
+// which also wants to claim whatever PORT the shell/tooling has set) is
+// deterministic. Falls back to the platform-injected PORT in production
+// (Railway/Fly), then 2567.
+const port = Number(process.env.GAME_SERVER_PORT) || Number(process.env.PORT) || 2567;
 httpServer.listen(port, () => {
   console.log(`BLOCKVERSE game server listening on :${port}`);
 });
