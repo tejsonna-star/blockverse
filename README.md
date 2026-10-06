@@ -10,18 +10,27 @@ constant: [`web/src/lib/platformConfig.ts`](web/src/lib/platformConfig.ts).
 
 ## Status
 
-This repo is being built in milestones (see the project plan). Currently
-implemented:
+This repo is being built in milestones. Currently implemented:
 
 - **M1 — done.** Hub shell (game grid, guest login, avatar customizer),
   full 3D Fight Sim scene with the original R6-style 6-box rig, client-side
   movement/physics (Rapier), third-person orbit camera, shift-lock, and
-  first-person zoom. Single player, no networking yet.
-- **M2 — sword tool, damage, death/respawn vs. a dummy NPC.** Not started.
-- **M3 — multiplayer Colyseus server, open PvP, server browser, private
-  servers.** `/server` is currently a stub package only.
-- **M4 — duels, chat, friends, parties, emotes, sounds, mobile controls,
-  settings.** Not started.
+  first-person zoom. Big open world (grass terrain, sky, scattered
+  trees/rocks), double jump, boundary walls.
+- **M2 — done.** Sword tool (equip/attack), 100 HP, 25 dmg/hit, a practice
+  dummy target with respawn.
+- **M3 — mostly done.** Real-time Colyseus server: shared world, remote
+  player rendering with nametags/HP bars, live leaderboard, kill feed,
+  server-side damage validation, respawn + spawn protection, server-wide
+  chat. `joinOrCreate` gives automatic 30-player-per-room matchmaking with
+  overflow to a new room. Not yet done: dedicated server browser UI,
+  private server codes, lag compensation/interest management,
+  anti-cheat.
+- **M4 — partial.** A small weapon shop (coins per kill, buyable
+  weapons with an E-key special ability on a 5s cooldown: knockback,
+  teleport, slow) and basic mobile touch controls (virtual joystick +
+  jump/attack buttons). Not yet done: duels, friends/parties, emotes,
+  settings menu, sound effects.
 
 ## Tech stack
 
@@ -55,16 +64,17 @@ npm run dev                 # starts the Next.js dev server (web only, for now)
 
 Open http://localhost:3000.
 
-Once the Colyseus server exists (M3), run both together from two terminals:
+For multiplayer, run the game server and the web app together from two
+terminals:
 
 ```bash
 npm run dev:server   # /server, default port 2567
 npm run dev:web      # /web, port 3000
 ```
 
-For M3, test multiplayer by opening multiple browser tabs (or windows) at
-`localhost:3000` as different guest usernames and joining the same server —
-each tab is a separate player.
+Test multiplayer by opening multiple browser tabs (or windows) at
+`localhost:3000` as different guest usernames and joining Fight Sim — each
+tab is a separate player in the same room.
 
 ### Environment variables
 
@@ -88,15 +98,21 @@ variables to your deployed Colyseus server's `wss://` URL.
 ### `/server` → Railway or Fly.io
 
 The server needs a persistent process (not serverless) because it holds
-WebSocket connections and ticks physics continuously. Either works:
+WebSocket connections. A [`Dockerfile`](server/Dockerfile) is provided
+(multi-stage build, builds from the monorepo root so the `/shared` workspace
+resolves correctly).
 
-- **Railway**: create a new service pointed at `/server`, set the start
-  command to `npm run start --workspace=server` (once M3 adds a real
-  build/start script), and expose the port Colyseus listens on.
-- **Fly.io**: `fly launch` from `/server` with a `Dockerfile` (to be added in
-  M3), `fly deploy` after.
+- **Railway**: create a new service from this repo, set the Dockerfile path
+  to `server/Dockerfile` and the build context to the repo root, and expose
+  port `2567` (or set `PORT` and let the app read it — it already does).
+- **Fly.io**: from the repo root, `fly launch --dockerfile server/Dockerfile`,
+  then `fly deploy`.
 
-Point the web app's `NEXT_PUBLIC_GAME_SERVER_URL` at whichever host you pick.
+Either way, once deployed you'll get a `wss://your-server-host` URL — set
+that as `NEXT_PUBLIC_GAME_SERVER_URL` in the Vercel project's environment
+variables (web won't see other players until this points at a real deployed
+server; it falls back to "Offline" and still plays single-player against the
+practice dummy if it can't connect).
 
 ## Adding a new game to the hub
 

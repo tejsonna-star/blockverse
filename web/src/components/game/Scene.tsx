@@ -4,13 +4,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Sky } from "@react-three/drei";
 import * as THREE from "three";
-import { AvatarColors } from "@blockverse/shared";
+import { AvatarColors, type WeaponId } from "@blockverse/shared";
 import { PhysicsProvider, usePhysics } from "./PhysicsProvider";
 import { InputController } from "./InputController";
 import { createOrbitState } from "./orbitMath";
 import { CameraRig } from "./CameraRig";
 import { LocalPlayerController } from "./LocalPlayerController";
 import { PracticeDummy, type DummyHandle } from "./PracticeDummy";
+import { RemotePlayers } from "./RemotePlayers";
+import type { NetworkClient } from "./NetworkClient";
 import { getAvatarColors } from "@/lib/session";
 
 const MAP_SIZE = 800;
@@ -194,9 +196,17 @@ function Rocks() {
 
 function SceneContents({
   colors,
+  network,
+  equippedWeapon,
+  inputRef,
+  abilityStatusRef,
   onEquipChange,
 }: {
   colors: AvatarColors;
+  network: NetworkClient | null;
+  equippedWeapon?: WeaponId;
+  inputRef?: React.RefObject<InputController | null>;
+  abilityStatusRef?: React.RefObject<{ cooldownRemaining: number }>;
   onEquipChange?: (equipped: boolean) => void;
 }) {
   const { gl, scene } = useThree();
@@ -204,11 +214,22 @@ function SceneContents({
   const orbitRef = useRef(createOrbitState());
   const targetRef = useRef<THREE.Group | null>(null);
   const dummyRef = useRef<DummyHandle | null>(null);
+  const [, setPlayersVersion] = useState(0);
+
+  useEffect(() => {
+    if (!network) return;
+    return network.onPlayersChange(() => setPlayersVersion((v) => v + 1));
+  }, [network]);
 
   useEffect(() => {
     const controller = new InputController(gl.domElement);
     setInput(controller);
-    return () => controller.dispose();
+    if (inputRef) inputRef.current = controller;
+    return () => {
+      controller.dispose();
+      if (inputRef) inputRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gl]);
 
   useEffect(() => {
@@ -245,12 +266,16 @@ function SceneContents({
       <BoundaryWalls />
       <PhysicsStepper />
       <PracticeDummy ref={dummyRef} />
+      {network && <RemotePlayers players={network.players} selfId={network.sessionId} />}
       <LocalPlayerController
         input={input}
         orbit={orbitRef}
         colors={colors}
         targetRef={targetRef}
         dummyRef={dummyRef}
+        network={network}
+        equippedWeapon={equippedWeapon}
+        abilityStatusRef={abilityStatusRef}
         onEquipChange={onEquipChange}
       />
       <CameraRig input={input} orbit={orbitRef} target={targetRef} />
@@ -258,7 +283,19 @@ function SceneContents({
   );
 }
 
-export function Scene({ onEquipChange }: { onEquipChange?: (equipped: boolean) => void }) {
+export function Scene({
+  network,
+  equippedWeapon,
+  inputRef,
+  abilityStatusRef,
+  onEquipChange,
+}: {
+  network?: NetworkClient | null;
+  equippedWeapon?: WeaponId;
+  inputRef?: React.RefObject<InputController | null>;
+  abilityStatusRef?: React.RefObject<{ cooldownRemaining: number }>;
+  onEquipChange?: (equipped: boolean) => void;
+}) {
   const [colors, setColors] = useState<AvatarColors | null>(null);
 
   useEffect(() => {
@@ -270,7 +307,14 @@ export function Scene({ onEquipChange }: { onEquipChange?: (equipped: boolean) =
   return (
     <Canvas shadows camera={{ fov: 60, near: 0.1, far: MAP_SIZE }}>
       <PhysicsProvider>
-        <SceneContents colors={colors} onEquipChange={onEquipChange} />
+        <SceneContents
+          colors={colors}
+          network={network ?? null}
+          equippedWeapon={equippedWeapon}
+          inputRef={inputRef}
+          abilityStatusRef={abilityStatusRef}
+          onEquipChange={onEquipChange}
+        />
       </PhysicsProvider>
     </Canvas>
   );

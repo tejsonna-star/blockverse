@@ -13,7 +13,14 @@ import {
   SWORD_RANGE,
   SWORD_ARC_DEGREES,
   ATTACK_COOLDOWN_MS,
+  ABILITY_COOLDOWN_MS,
+  FLASH_DISTANCE,
+  KNOCKBACK_SPEED,
+  KNOCKBACK_DURATION_MS,
+  SLOW_MULTIPLIER,
+  SLOW_DURATION_MS,
   type AvatarColors,
+  type WeaponId,
 } from "@blockverse/shared";
 import { usePhysics } from "./PhysicsProvider";
 import type { InputController } from "./InputController";
@@ -21,10 +28,12 @@ import { CharacterRig, type RigHandle } from "./CharacterRig";
 import { pickMotionState, computePose } from "./CharacterAnimator";
 import { yawForward, yawRight, wrapAngle, type OrbitState } from "./orbitMath";
 import { DUMMY_POSITION, type DummyHandle } from "./PracticeDummy";
+import type { NetworkClient } from "./NetworkClient";
 
 const TURN_SPEED = 14; // higher = snappier facing turns
 const MAX_JUMPS = 2; // double jump: one from ground, one more in the air
 const SLASH_DURATION = 0.28; // seconds, arm-swing animation length
+const MOVE_SEND_INTERVAL = 1 / 15; // throttle network position updates to 15Hz
 
 type Props = {
   input: InputController;
@@ -32,10 +41,23 @@ type Props = {
   colors: AvatarColors;
   targetRef: RefObject<THREE.Group | null>;
   dummyRef: RefObject<DummyHandle | null>;
+  network?: NetworkClient | null;
+  equippedWeapon?: WeaponId;
+  abilityStatusRef?: RefObject<{ cooldownRemaining: number }>;
   onEquipChange?: (equipped: boolean) => void;
 };
 
-export function LocalPlayerController({ input, orbit, colors, targetRef, dummyRef, onEquipChange }: Props) {
+export function LocalPlayerController({
+  input,
+  orbit,
+  colors,
+  targetRef,
+  dummyRef,
+  network,
+  equippedWeapon = "default",
+  abilityStatusRef,
+  onEquipChange,
+}: Props) {
   const { RAPIER, world } = usePhysics();
   const rigRef = useRef<RigHandle | null>(null);
   const colliderRef = useRef<RAPIER.Collider | null>(null);
@@ -50,7 +72,25 @@ export function LocalPlayerController({ input, orbit, colors, targetRef, dummyRe
   const swordEquippedRef = useRef(swordEquipped);
   swordEquippedRef.current = swordEquipped;
   const attackCooldown = useRef(0);
+  const abilityCooldown = useRef(0);
   const slashTimer = useRef(0);
+  const moveSendTimer = useRef(0);
+  const equippedWeaponRef = useRef(equippedWeapon);
+  equippedWeaponRef.current = equippedWeapon;
+  const knockback = useRef({ x: 0, z: 0, timer: 0 });
+  const slowTimer = useRef(0);
+
+  useEffect(() => {
+    if (!network) return;
+    return network.onHitEffect((msg) => {
+      if (msg.targetId !== network.sessionId) return;
+      if (msg.type === "knockback") {
+        knockback.current = { x: msg.dirX ?? 0, z: msg.dirZ ?? 0, timer: KNOCKBACK_DURATION_MS / 1000 };
+      } else if (msg.type === "slow") {
+        slowTimer.current = SLOW_DURATION_MS / 1000;
+      }
+    });
+  }, [network]);
 
   const radius = CHARACTER_CAPSULE.radius;
   const halfHeight = CHARACTER_CAPSULE.halfHeight;
@@ -89,6 +129,7 @@ export function LocalPlayerController({ input, orbit, colors, targetRef, dummyRe
     const dt = Math.min(delta, 1 / 30);
     clock.current += dt;
     if (attackCooldown.current > 0) attackCooldown.current -= dt;
+    if (abilityCooldown.current > 0) abilityCooldown.current -= dt;
     if (slashTimer.current > 0) slashTimer.current -= dt;
 
     if (input.consumeEquipToggle()) {
@@ -123,10 +164,21 @@ export function LocalPlayerController({ input, orbit, colors, targetRef, dummyRe
       verticalVelocity.current += GRAVITY * dt;
     }
 
+    if (slowTimer.current > 0) slowTimer.current -= dt;
+    const effectiveWalkSpeed = slowTimer.current > 0 ? WALK_SPEED * SLOW_MULTIPLIER : WALK_SPEED;
+
+    let knockbackX = 0;
+    let knockbackZ = 0;
+    if (knockback.current.timer > 0) {
+      knockback.current.timer -= dt;
+      knockbackX = knockback.current.x * KNOCKBACK_SPEED * dt;
+      knockbackZ = knockback.current.z * KNOCKBACK_SPEED * dt;
+    }
+
     const desiredMovement = {
-      x: worldDir.x * WALK_SPEED * horizontalSpeedFrac * dt,
+      x: worldDir.x * effectiveWalkSpeed * horizontalSpeedFrac * dt + knockbackX,
       y: verticalVelocity.current * dt,
-      z: worldDir.z * WALK_SPEED * horizontalSpeedFrac * dt,
+      z: worldDir.z * effectiveWalkSpeed * horizontalSpeedFrac * dt + knockbackZ,
     };
 
     controller.computeColliderMovement(collider, desiredMovement);
@@ -187,22 +239,50 @@ export function LocalPlayerController({ input, orbit, colors, targetRef, dummyRe
       attackCooldown.current = ATTACK_COOLDOWN_MS / 1000;
       slashTimer.current = SLASH_DURATION;
 
-      const dummy = dummyRef.current;
-      if (dummy && dummy.isAlive()) {
-        const toDummy = new THREE.Vector3(
-          DUMMY_POSITION.x - next.x,
-          0,
-          DUMMY_POSITION.z - next.z
-        );
-        const dist = toDummy.length();
-        if (dist <= SWORD_RANGE) {
-          toDummy.normalize();
-          const faceDir = new THREE.Vector3(Math.sin(facingYaw.current), 0, Math.cos(facingYaw.current));
-          const angle = THREE.MathUtils.radToDeg(Math.acos(THREE.MathUtils.clamp(faceDir.dot(toDummy), -1, 1)));
-          if (angle <= SWORD_ARC_DEGREES / 2) {
-            dummy.takeDamage(DAMAGE.slash);
+      // The click attack is always the plain 25-damage sword slash —
+      // weapon identity only changes what the E ability does.
+      const faceDir = new THREE.Vector3(Math.sin(facingYaw.current), 0, Math.cos(facingYaw.current));
+      const inArc = (targetX: number, targetZ: number) => {
+        const toTarget = new THREE.Vector3(targetX - next.x, 0, targetZ - next.z);
+        const dist = toTarget.length();
+        if (dist > SWORD_RANGE) return false;
+        toTarget.normalize();
+        const angle = THREE.MathUtils.radToDeg(Math.acos(THREE.MathUtils.clamp(faceDir.dot(toTarget), -1, 1)));
+        return angle <= SWORD_ARC_DEGREES / 2;
+      };
+
+      // Real players take priority over the practice dummy.
+      let hitRemote = false;
+      if (network?.connected) {
+        for (const [id, p] of network.players) {
+          if (id === network.sessionId || p.health <= 0 || p.spawnProtected) continue;
+          if (inArc(p.x, p.z)) {
+            network.sendAttack(id);
+            hitRemote = true;
+            break;
           }
         }
+      }
+
+      if (!hitRemote) {
+        const dummy = dummyRef.current;
+        if (dummy && dummy.isAlive() && inArc(DUMMY_POSITION.x, DUMMY_POSITION.z)) {
+          dummy.takeDamage(DAMAGE.slash);
+        }
+      }
+    }
+
+    if (input.consumeAbility() && abilityCooldown.current <= 0 && equippedWeaponRef.current !== "default") {
+      abilityCooldown.current = ABILITY_COOLDOWN_MS / 1000;
+
+      if (equippedWeaponRef.current === "flash") {
+        const forwardDir = yawForward(facingYaw.current);
+        next.x += forwardDir.x * FLASH_DISTANCE;
+        next.z += forwardDir.z * FLASH_DISTANCE;
+        collider.setTranslation(next);
+        rig.root.position.set(next.x, next.y - colliderOffset, next.z);
+      } else if (network?.connected) {
+        network.sendAbility(equippedWeaponRef.current);
       }
     }
 
@@ -213,12 +293,30 @@ export function LocalPlayerController({ input, orbit, colors, targetRef, dummyRe
     const effectivelyGrounded = grounded.current || Math.abs(verticalVelocity.current) < 5;
     const speed = horizontalSpeedFrac * WALK_SPEED;
     const motionState = pickMotionState({ speed, grounded: effectivelyGrounded, verticalVelocity: verticalVelocity.current });
+
+    if (abilityStatusRef) {
+      abilityStatusRef.current = { cooldownRemaining: Math.max(0, abilityCooldown.current) };
+    }
+
+    moveSendTimer.current -= dt;
+    if (network?.connected && moveSendTimer.current <= 0) {
+      moveSendTimer.current = MOVE_SEND_INTERVAL;
+      network.sendMove(next.x, next.y - colliderOffset, next.z, facingYaw.current, motionState);
+    }
+
     const pose = computePose(motionState, clock.current, speed);
     rig.leftArm.rotation.x = pose.leftArm;
-    rig.rightArm.rotation.x =
-      slashTimer.current > 0
-        ? THREE.MathUtils.lerp(0.3, -2.3, slashTimer.current / SLASH_DURATION)
-        : pose.rightArm;
+    if (slashTimer.current > 0) {
+      // Diagonal downward chop: swing through a contained arc (not a full
+      // rotation) with a bit of sideways cross so it reads as a slash.
+      const t = 1 - slashTimer.current / SLASH_DURATION;
+      const swing = Math.sin(t * Math.PI); // 0 -> 1 -> 0, eases in and out
+      rig.rightArm.rotation.x = THREE.MathUtils.lerp(-0.6, -1.9, t);
+      rig.rightArm.rotation.z = THREE.MathUtils.lerp(0.5, -0.4, t) * swing + 0.1;
+    } else {
+      rig.rightArm.rotation.x = pose.rightArm;
+      rig.rightArm.rotation.z = 0;
+    }
     rig.leftLeg.rotation.x = pose.leftLeg;
     rig.rightLeg.rotation.x = pose.rightLeg;
     rig.head.rotation.x = pose.headTilt;

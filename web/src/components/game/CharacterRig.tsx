@@ -63,19 +63,28 @@ type Props = {
   swordEquipped?: boolean;
 };
 
+// Blade length is sized to visually read as roughly matching SWORD_RANGE
+// (measured from the player's center), so the hitbox doesn't look bigger
+// than the weapon that's supposedly causing it.
+const BLADE_LENGTH = 3.6;
+const BLADE_WIDTH = 0.3;
+
 function Sword() {
+  // Held near the hand, blade extending forward (local +Z) rather than
+  // straight up — previously the blade pointed up through the head.
+  const handY = -RIG.limb.y + 0.35;
   return (
-    <group position={[0, -RIG.limb.y + 0.1, 0.15]} rotation={[-0.25, 0, 0]}>
-      <mesh position={[0, -0.3, 0]} castShadow>
-        <boxGeometry args={[0.2, 0.6, 0.15]} />
+    <group position={[0, handY, 0]}>
+      <mesh position={[0, 0, -0.25]} castShadow>
+        <boxGeometry args={[0.22, 0.17, 0.5]} />
         <meshStandardMaterial color="#4a3826" />
       </mesh>
-      <mesh position={[0, 0.15, 0]} castShadow>
-        <boxGeometry args={[0.55, 0.15, 0.1]} />
+      <mesh position={[0, 0, 0.08]} castShadow>
+        <boxGeometry args={[0.75, 0.14, 0.14]} />
         <meshStandardMaterial color="#8a8a8a" metalness={0.6} roughness={0.3} />
       </mesh>
-      <mesh position={[0, 1.1, 0]} castShadow>
-        <boxGeometry args={[0.18, 1.7, 0.08]} />
+      <mesh position={[0, 0, 0.08 + BLADE_LENGTH / 2]} castShadow>
+        <boxGeometry args={[BLADE_WIDTH, 0.14, BLADE_LENGTH]} />
         <meshStandardMaterial color="#d8dde3" metalness={0.7} roughness={0.25} />
       </mesh>
     </group>

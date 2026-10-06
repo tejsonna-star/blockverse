@@ -1,38 +1,160 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { MAX_HEALTH } from "@blockverse/shared";
-import { authProvider } from "@/lib/session";
+import { MAX_HEALTH, COINS_PER_KILL, WEAPONS, type AvatarColors, type WeaponId } from "@blockverse/shared";
+import { authProvider, getAvatarColors } from "@/lib/session";
 import { HealthBar } from "@/components/game/HUD/HealthBar";
 import { Hotbar } from "@/components/game/HUD/Hotbar";
-import { ChatBox } from "@/components/game/HUD/ChatBox";
+import { ChatBox, type ChatLine } from "@/components/game/HUD/ChatBox";
+import { Leaderboard, type LeaderboardEntry } from "@/components/game/HUD/Leaderboard";
+import { KillFeed, type KillFeedLine } from "@/components/game/HUD/KillFeed";
+import { Shop } from "@/components/game/HUD/Shop";
+import { AbilityButton } from "@/components/game/HUD/AbilityButton";
+import { MobileControls } from "@/components/game/HUD/MobileControls";
+import { NetworkClient } from "@/components/game/NetworkClient";
+import type { InputController } from "@/components/game/InputController";
 
 const Scene = dynamic(() => import("@/components/game/Scene").then((m) => m.Scene), {
   ssr: false,
 });
 
+let chatId = 1;
+let killFeedId = 1;
+
+type ConnectionStatus = "connecting" | "connected" | "offline";
+
 export default function FightSimPage() {
   const [swordEquipped, setSwordEquipped] = useState(true);
   const [username, setUsername] = useState("Guest");
+  const [status, setStatus] = useState<ConnectionStatus>("connecting");
+  const [messages, setMessages] = useState<ChatLine[]>([
+    { id: chatId++, username: "SYSTEM", text: "Connecting to server..." },
+  ]);
+  const [killFeed, setKillFeed] = useState<KillFeedLine[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [selfHealth, setSelfHealth] = useState(MAX_HEALTH);
+  const [coins, setCoins] = useState(0);
+  const [ownedWeapons, setOwnedWeapons] = useState<Set<WeaponId>>(new Set(["default"]));
+  const [equippedWeapon, setEquippedWeapon] = useState<WeaponId>("default");
+
+  const network = useMemo(() => new NetworkClient(), []);
+  const networkRef = useRef(network);
+  networkRef.current = network;
+  const inputRef = useRef<InputController | null>(null);
+  const abilityStatusRef = useRef({ cooldownRemaining: 0 });
 
   useEffect(() => {
-    setUsername(authProvider.getCurrentUser()?.username ?? "Guest");
-  }, []);
+    const user = authProvider.getCurrentUser();
+    const name = user?.username ?? "Guest";
+    setUsername(name);
+    const colors: AvatarColors = getAvatarColors();
+
+    let cancelled = false;
+    network.connect(name, colors).then((ok) => {
+      if (cancelled) return;
+      setStatus(ok ? "connected" : "offline");
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: chatId++,
+          username: "SYSTEM",
+          text: ok ? "Connected. You're playing live!" : "Couldn't reach the game server — playing offline.",
+        },
+      ]);
+    });
+
+    const unsubPlayers = network.onPlayersChange((players) => {
+      const entries: LeaderboardEntry[] = Array.from(players.entries()).map(([id, p]) => ({
+        id,
+        username: p.username,
+        kills: p.kills,
+        deaths: p.deaths,
+        streak: p.streak,
+        isSelf: id === network.sessionId,
+      }));
+      setLeaderboard(entries);
+
+      const self = network.sessionId ? players.get(network.sessionId) : undefined;
+      if (self) setSelfHealth(self.health);
+    });
+
+    const unsubChat = network.onChat((msg) => {
+      setMessages((prev) => [...prev.slice(-19), { id: chatId++, username: msg.username, text: msg.text }]);
+    });
+
+    const unsubKillFeed = network.onKillFeed((msg) => {
+      const id = killFeedId++;
+      setKillFeed((prev) => [...prev.slice(-4), { id, killer: msg.killer, victim: msg.victim }]);
+      setTimeout(() => {
+        setKillFeed((prev) => prev.filter((l) => l.id !== id));
+      }, 5000);
+      if (msg.killer === name) {
+        setCoins((c) => c + COINS_PER_KILL);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsubPlayers();
+      unsubChat();
+      unsubKillFeed();
+      network.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [network]);
 
   return (
     <div className="fixed inset-0 bg-black">
-      <Scene onEquipChange={setSwordEquipped} />
+      <Scene
+        network={network}
+        equippedWeapon={equippedWeapon}
+        inputRef={inputRef}
+        abilityStatusRef={abilityStatusRef}
+        onEquipChange={setSwordEquipped}
+      />
       <Link
         href="/"
         className="absolute top-4 left-4 z-10 px-4 py-2 rounded-md bg-black/60 border border-white/15 text-sm hover:bg-black/80 transition-colors"
       >
         ← Back to Hub
       </Link>
-      <HealthBar health={MAX_HEALTH} />
+      <span
+        className={`absolute top-4 right-4 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+          status === "connected"
+            ? "bg-emerald-500/15 border-emerald-400/40 text-emerald-300"
+            : status === "connecting"
+              ? "bg-white/10 border-white/20 text-white/60"
+              : "bg-red-500/15 border-red-400/40 text-red-300"
+        }`}
+      >
+        <span
+          className={`h-1.5 w-1.5 rounded-full ${
+            status === "connected" ? "bg-emerald-400 animate-pulse" : status === "connecting" ? "bg-white/50" : "bg-red-400"
+          }`}
+        />
+        {status === "connected" ? "Live" : status === "connecting" ? "Connecting..." : "Offline"}
+      </span>
+      <HealthBar health={selfHealth} />
       <Hotbar swordEquipped={swordEquipped} />
-      <ChatBox username={username} />
+      <AbilityButton equipped={equippedWeapon} inputRef={inputRef} statusRef={abilityStatusRef} />
+      <MobileControls inputRef={inputRef} />
+      <ChatBox messages={messages} onSend={(text) => networkRef.current.sendChat(text)} />
+      <Leaderboard entries={leaderboard} />
+      <KillFeed lines={killFeed} />
+      <Shop
+        coins={coins}
+        owned={ownedWeapons}
+        equipped={equippedWeapon}
+        onBuy={(id) => {
+          const weapon = WEAPONS.find((w) => w.id === id);
+          if (!weapon || coins < weapon.cost || ownedWeapons.has(id)) return;
+          setCoins((c) => c - weapon.cost);
+          setOwnedWeapons((prev) => new Set(prev).add(id));
+        }}
+        onEquip={(id) => setEquippedWeapon(id)}
+      />
     </div>
   );
 }

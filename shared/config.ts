@@ -60,6 +60,48 @@ export const TOUCH_DAMAGE_COOLDOWN_MS = 1000; // per-target cooldown for contact
 export const RESPAWN_DELAY_MS = 3000;
 export const SPAWN_PROTECTION_MS = 3000;
 
+// ---------- Shop / weapons (used from M4) ----------
+export const COINS_PER_KILL = 50;
+export type WeaponId = "default" | "fartblast" | "flash" | "snow";
+export type WeaponDef = {
+  id: WeaponId;
+  name: string;
+  icon: string;
+  cost: number;
+  description: string;
+};
+export const WEAPONS: WeaponDef[] = [
+  { id: "default", name: "Default", icon: "⚔️", cost: 0, description: "Classic sword, 25 damage. No special ability." },
+  {
+    id: "fartblast",
+    name: "Fart Blast",
+    icon: "💨",
+    cost: 100,
+    description: "Sword (25 dmg). Ability (E): pushes nearby players away with a small explosion.",
+  },
+  {
+    id: "flash",
+    name: "Flash",
+    icon: "⚡",
+    cost: 200,
+    description: "Sword (25 dmg). Ability (E): instantly teleports you forward.",
+  },
+  {
+    id: "snow",
+    name: "Snow",
+    icon: "❄️",
+    cost: 300,
+    description: "Sword (25 dmg). Ability (E): freezes the nearest target in front of you, slowing them.",
+  },
+];
+export const KNOCKBACK_SPEED = 28; // studs/sec impulse applied by Fart Blast
+export const KNOCKBACK_DURATION_MS = 350;
+export const FLASH_DISTANCE = 16; // studs
+export const ABILITY_COOLDOWN_MS = 5000;
+export const ABILITY_RANGE = 10; // studs — fartblast AOE radius / snow target search range
+export const SLOW_MULTIPLIER = 0.4;
+export const SLOW_DURATION_MS = 3000;
+
 // ---------- Duels (used from M4) ----------
 export const DUEL_ROUNDS_TO_WIN = 3;
 export const DUEL_COUNTDOWN_SECONDS = 3;

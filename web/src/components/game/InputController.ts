@@ -11,6 +11,9 @@ export class InputController {
   private wheelDY = 0;
   private attackQueued = false;
   private equipToggleQueued = false;
+  private abilityQueued = false;
+  private virtualMove = { x: 0, z: 0 };
+  private virtualJumpHeld = false;
   shiftLock = false;
 
   constructor(private element: HTMLElement) {
@@ -32,6 +35,9 @@ export class InputController {
     }
     if (e.code === "Digit1" && !wasHeld) {
       this.equipToggleQueued = true;
+    }
+    if (e.code === "KeyE" && !wasHeld) {
+      this.abilityQueued = true;
     }
   };
 
@@ -83,12 +89,26 @@ export class InputController {
     if (this.keys.has("KeyS") || this.keys.has("ArrowDown")) z += 1;
     if (this.keys.has("KeyA") || this.keys.has("ArrowLeft")) x -= 1;
     if (this.keys.has("KeyD") || this.keys.has("ArrowRight")) x += 1;
+    if (x === 0 && z === 0) {
+      // Fall back to the mobile virtual joystick when no keys are held.
+      x = this.virtualMove.x;
+      z = this.virtualMove.z;
+    }
     const len = Math.hypot(x, z);
     return len > 0 ? { x: x / len, z: z / len } : { x: 0, z: 0 };
   }
 
   isJumpHeld(): boolean {
-    return this.keys.has("Space");
+    return this.keys.has("Space") || this.virtualJumpHeld;
+  }
+
+  /** Mobile virtual joystick: x/z in [-1, 1], unnormalized (magnitude = deflection). */
+  setVirtualMove(x: number, z: number): void {
+    this.virtualMove = { x, z };
+  }
+
+  setVirtualJump(held: boolean): void {
+    this.virtualJumpHeld = held;
   }
 
   consumeMouseDelta(): { dx: number; dy: number } {
@@ -115,6 +135,22 @@ export class InputController {
     const v = this.equipToggleQueued;
     this.equipToggleQueued = false;
     return v;
+  }
+
+  consumeAbility(): boolean {
+    const v = this.abilityQueued;
+    this.abilityQueued = false;
+    return v;
+  }
+
+  /** Lets a touch/mouse HUD button fire the same ability trigger as the E key. */
+  triggerAbility(): void {
+    this.abilityQueued = true;
+  }
+
+  /** Lets a touch/mouse HUD button fire the same attack trigger as a left click. */
+  triggerAttack(): void {
+    this.attackQueued = true;
   }
 
   dispose(): void {

@@ -2,14 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
-type ChatMessage = { id: number; username: string; text: string };
+export type ChatLine = { id: number; username: string; text: string };
 
-let nextId = 1;
-
-export function ChatBox({ username }: { username: string }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: nextId++, username: "SYSTEM", text: "Chat is local-only until the multiplayer server is live." },
-  ]);
+export function ChatBox({ messages, onSend }: { messages: ChatLine[]; onSend: (text: string) => void }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -25,19 +20,18 @@ export function ChatBox({ username }: { username: string }) {
   }, [open]);
 
   useEffect(() => {
-    if (open) {
-      // Pointer lock (shift-lock) blocks focus/typing on form elements in
-      // most browsers, so drop it before handing focus to the chat input.
-      if (document.pointerLockElement) document.exitPointerLock();
-      inputRef.current?.focus();
-    }
+    if (!open) return;
+    // Pointer lock (shift-lock) blocks focus/typing on form elements in
+    // most browsers, so drop it before handing focus to the chat input.
+    // exitPointerLock is asynchronous, so defer the focus a tick.
+    if (document.pointerLockElement) document.exitPointerLock();
+    const id = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(id);
   }, [open]);
 
   function send() {
     const trimmed = draft.trim();
-    if (trimmed) {
-      setMessages((prev) => [...prev.slice(-19), { id: nextId++, username, text: trimmed }]);
-    }
+    if (trimmed) onSend(trimmed);
     setDraft("");
     setOpen(false);
   }
@@ -68,7 +62,6 @@ export function ChatBox({ username }: { username: string }) {
             }
           }}
           onKeyUp={(e) => e.stopPropagation()}
-          onBlur={() => setOpen(false)}
           maxLength={120}
           placeholder="Say something..."
           className="w-full px-2 py-1.5 rounded-md bg-black/60 border border-white/20 text-sm text-white outline-none focus:border-brand-accent"
