@@ -40,7 +40,7 @@ export default function HomePage() {
       <header className="sticky top-0 z-20 flex items-center justify-between px-6 md:px-8 py-4 border-b border-white/10 bg-brand-bg/80 backdrop-blur-md">
         <div className="flex items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-accent text-white font-black text-sm shadow-[0_0_16px_rgba(91,141,239,0.5)]">
-            B
+            🔢
           </span>
           <h1 className="text-xl font-black tracking-wide">{PLATFORM_NAME}</h1>
         </div>
@@ -78,18 +78,18 @@ export default function HomePage() {
             Now Live
           </span>
           <h2 className="text-3xl md:text-5xl font-black tracking-tight leading-tight">
-            Grab a sword. Pick a server.
+            Sharpen your math skills.
             <br />
-            <span className="text-brand-accent">Fight everyone.</span>
+            <span className="text-brand-accent">Free practice games.</span>
           </h2>
           <p className="mt-4 text-white/60 max-w-xl">
-            {flagship.description} Jump into {PLATFORM_NAME} and swing into the action — no queue, no lobby.
+            {flagship.description} Jump into {PLATFORM_NAME} and start practicing — no sign-up, no lobby.
           </p>
           <button
             onClick={() => router.push(flagship.route)}
             className="mt-6 px-6 py-3 rounded-xl bg-brand-accent text-white font-bold tracking-wide shadow-[0_8px_24px_-6px_rgba(91,141,239,0.6)] hover:scale-[1.03] active:scale-100 transition-transform"
           >
-            ⚔ Play {flagship.title}
+            🔢 Play {flagship.title}
           </button>
         </div>
       </section>

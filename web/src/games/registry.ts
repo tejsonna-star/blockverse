@@ -10,11 +10,11 @@ export type GameRegistryEntry = {
 
 export const GAME_REGISTRY: GameRegistryEntry[] = [
   {
-    id: "fight-sim",
-    title: "Fight Sim",
-    description: "Classic blocky-avatar sword PvP. Jump in and fight everyone on the server.",
-    thumbnail: "⚔️",
-    route: "/games/fight-sim",
+    id: "number-ninja",
+    title: "Number Ninja",
+    description: "Fast-paced arithmetic practice. Sharpen your mental math against the clock.",
+    thumbnail: "🔢",
+    route: "/games/number-ninja",
     getLivePlayerCount: () => 0,
   },
 ];

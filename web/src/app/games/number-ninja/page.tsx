@@ -25,7 +25,7 @@ let killFeedId = 1;
 
 type ConnectionStatus = "connecting" | "connected" | "offline";
 
-export default function FightSimPage() {
+export default function NumberNinjaPage() {
   const [swordEquipped, setSwordEquipped] = useState(true);
   const [username, setUsername] = useState("Guest");
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
@@ -104,6 +104,18 @@ export default function FightSimPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [network]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key.toLowerCase() === "k") {
+        window.location.href = "https://www.khanacademy.org/math";
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   return (
     <div className="fixed inset-0 bg-black">

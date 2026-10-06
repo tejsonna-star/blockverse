@@ -3,7 +3,7 @@
  * Change gameplay feel here — nothing else should hardcode these values.
  */
 
-export const PLATFORM_NAME = "BLOCKVERSE";
+export const PLATFORM_NAME = "MathBlast";
 
 // ---------- Avatar / world scale ----------
 // 1 "stud" = 1 three.js/Rapier world unit.
